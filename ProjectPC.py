@@ -197,17 +197,246 @@ st.markdown("Brian Zahran Putra (123230195) ")
 st.markdown("Ikhsan Fillah Hidayat (123230219)")
 st.markdown("---")
 
-# Upload gambar
-uploaded_file = st.file_uploader(
-    "📁 Upload Gambar (JPG, JPEG, PNG)",
-    type=["jpg", "jpeg", "png"],
-    help="Drag and drop gambar atau klik untuk browse"
+# Inisialisasi session state untuk menyimpan captured image
+if 'captured_image' not in st.session_state:
+    st.session_state.captured_image = None
+if 'camera_active' not in st.session_state:
+    st.session_state.camera_active = False
+
+# Pilihan sumber gambar
+input_source = st.radio(
+    "📷 Pilih Sumber Input:",
+    ["Upload Gambar", "Capture Kamera", "Video Live"],
+    horizontal=True
 )
 
-if uploaded_file is not None:
+st.markdown("---")
+
+uploaded_file = None
+camera_image = None
+
+if input_source == "Upload Gambar":
+    # Reset captured image jika pindah ke mode upload
+    st.session_state.captured_image = None
+    
+    # Upload gambar
+    uploaded_file = st.file_uploader(
+        "📁 Upload Gambar (JPG, JPEG, PNG)",
+        type=["jpg", "jpeg", "png"],
+        help="Drag and drop gambar atau klik untuk browse"
+    )
+
+elif input_source == "Capture Kamera":
+    st.subheader("📸 Capture dari Kamera")
+    
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        if st.button("🎥 Capture Gambar", type="primary"):
+            # Inisialisasi kamera
+            cap = cv2.VideoCapture(0)
+            
+            if not cap.isOpened():
+                st.error("❌ Tidak dapat mengakses kamera. Pastikan kamera Anda terhubung dan tidak digunakan aplikasi lain.")
+            else:
+                # Tunggu sebentar agar kamera siap
+                import time
+                time.sleep(0.5)
+                
+                # Ambil frame dari kamera
+                ret, frame = cap.read()
+                
+                if ret:
+                    # Konversi BGR ke RGB untuk display
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    st.session_state.captured_image = frame_rgb
+                    st.success("✅ Gambar berhasil di-capture!")
+                else:
+                    st.error("❌ Gagal membaca frame dari kamera.")
+                
+                # Release kamera
+                cap.release()
+    
+    with col_btn2:
+        if st.button("🗑️ Hapus Capture"):
+            st.session_state.captured_image = None
+            st.info("Capture dihapus. Silakan capture gambar baru.")
+    
+    # Tampilkan preview jika ada captured image
+    if st.session_state.captured_image is not None:
+        st.image(st.session_state.captured_image, caption="🖼️ Gambar yang Di-capture", use_container_width=True)
+        camera_image = st.session_state.captured_image
+
+elif input_source == "Video Live":
+    st.subheader("🎥 Video Live dari Kamera")
+    
+    # Inisialisasi session state untuk video
+    if 'video_running' not in st.session_state:
+        st.session_state.video_running = False
+    
+    # Tambahkan parameter controls di sidebar untuk video live
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⚙️ Parameter untuk Video Live")
+    
+    if feature == "Thresholding (Binerisasi)":
+        threshold_value = st.sidebar.slider("Nilai Threshold (0-255):", 0, 255, 127, key="live_threshold")
+        st.session_state.threshold_value = threshold_value
+    
+    elif feature == "Image Brightening":
+        brightness_value = st.sidebar.slider("Nilai Brightness (-100 sampai 100):", -100, 100, 50, key="live_brightness")
+        st.session_state.brightness_value = brightness_value
+    
+    elif feature == "Convolution (Konvolusi)":
+        mask_type = st.sidebar.selectbox(
+            "Pilih Jenis Filter/Mask:",
+            [
+                "Smoothing (Average)",
+                "Gaussian Blur",
+                "Sharpening",
+                "Edge Detection (Sobel X)",
+                "Edge Detection (Sobel Y)",
+                "Edge Detection (Laplacian)"
+            ],
+            key="live_mask"
+        )
+        st.session_state.mask_type = mask_type
+    
+    col_video1, col_video2 = st.columns(2)
+    
+    with col_video1:
+        start_video = st.button("▶️ Mulai Video Live", type="primary")
+        
+    with col_video2:
+        stop_video = st.button("⏸️ Stop Video")
+    
+    if start_video:
+        st.session_state.video_running = True
+    
+    if stop_video:
+        st.session_state.video_running = False
+    
+    if st.session_state.video_running:
+        st.info("🎥 Video live sedang berjalan. Klik 'Stop Video' untuk menghentikan.")
+        
+        # Placeholder untuk video dan histogram
+        video_placeholder = st.empty()
+        histogram_placeholder = st.empty()
+        
+        # Inisialisasi kamera
+        cap = cv2.VideoCapture(0)
+        
+        if not cap.isOpened():
+            st.error("❌ Tidak dapat mengakses kamera.")
+            st.session_state.video_running = False
+        else:
+            # Frame counter untuk optimize refresh rate
+            frame_count = 0
+            
+            while st.session_state.video_running:
+                ret, frame = cap.read()
+                
+                if not ret:
+                    st.error("❌ Gagal membaca frame dari kamera.")
+                    break
+                
+                # Konversi BGR ke RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                
+                # Konversi ke grayscale untuk processing
+                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                
+                # Apply selected feature
+                if feature == "Thresholding (Binerisasi)":
+                    # Get threshold value from session state or use default
+                    threshold_val = st.session_state.get('threshold_value', 127)
+                    processed_frame = biner(gray_frame, threshold_val)
+                    # Convert back to RGB for display
+                    processed_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_GRAY2RGB)
+                
+                elif feature == "Citra Negatif":
+                    processed_frame = negatif(gray_frame)
+                    processed_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_GRAY2RGB)
+                
+                elif feature == "Image Brightening":
+                    brightness_val = st.session_state.get('brightness_value', 50)
+                    processed_frame = image_brightening(gray_frame, brightness_val)
+                    processed_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_GRAY2RGB)
+                
+                elif feature == "Convolution (Konvolusi)":
+                    mask_type = st.session_state.get('mask_type', 'Smoothing (Average)')
+                    masks = {
+                        "Smoothing (Average)": np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]]) / 9,
+                        "Gaussian Blur": np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]]) / 16,
+                        "Sharpening": np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]),
+                        "Edge Detection (Sobel X)": np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]),
+                        "Edge Detection (Sobel Y)": np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]),
+                        "Edge Detection (Laplacian)": np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
+                    }
+                    selected_mask = masks[mask_type]
+                    processed_frame = konvolusi(gray_frame, selected_mask)
+                    processed_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_GRAY2RGB)
+                
+                elif feature == "Histogram Equalization":
+                    processed_frame = perataan_histogram(gray_frame)
+                    processed_rgb = cv2.cvtColor(processed_frame, cv2.COLOR_GRAY2RGB)
+                
+                else:  # Original
+                    processed_frame = gray_frame
+                    processed_rgb = frame_rgb.copy()
+                
+                # Display video side by side
+                with video_placeholder.container():
+                    col_display1, col_display2 = st.columns(2)
+                    
+                    with col_display1:
+                        st.image(frame_rgb, caption="📹 Video Asli", use_container_width=True)
+                    
+                    with col_display2:
+                        st.image(processed_rgb, caption=f"🎨 Hasil: {feature}", use_container_width=True)
+                
+                # Display histograms side by side (update setiap beberapa frame untuk performa)
+                if frame_count % 5 == 0:  # Update histogram setiap 5 frame
+                    with histogram_placeholder.container():
+                        st.markdown("---")
+                        st.subheader("📊 Histogram Real-Time")
+                        col_hist1, col_hist2 = st.columns(2)
+                        
+                        with col_hist1:
+                            st.markdown("**📈 Histogram Input**")
+                            fig_input = plot_histogram(gray_frame)
+                            st.pyplot(fig_input)
+                            plt.close(fig_input)
+                        
+                        with col_hist2:
+                            st.markdown("**📈 Histogram Output**")
+                            if feature == "Original":
+                                fig_output = plot_histogram(gray_frame)
+                            else:
+                                fig_output = plot_histogram(processed_frame)
+                            st.pyplot(fig_output)
+                            plt.close(fig_output)
+                
+                frame_count += 1
+                
+                # Refresh rate control - update setiap beberapa frame
+                if frame_count % 3 == 0:  # Update every 3 frames untuk performa lebih baik
+                    import time
+                    time.sleep(0.03)
+            
+            cap.release()
+            st.success("✅ Video live dihentikan.")
+    else:
+        st.info("👆 Klik tombol 'Mulai Video Live' untuk memulai streaming dari kamera.")
+
+if uploaded_file is not None or camera_image is not None:
     # Baca gambar
-    image = Image.open(uploaded_file)
-    image_array = np.array(image)
+    if uploaded_file is not None:
+        image = Image.open(uploaded_file)
+        image_array = np.array(image)
+    else:
+        # Gunakan gambar dari kamera
+        image_array = camera_image
+    
     # Simpan gambar asli untuk ditampilkan di input
     rgb_image = image_array.copy()
     gray_image = convert_to_grayscale(image_array)
@@ -220,6 +449,7 @@ if uploaded_file is not None:
     if feature == "Thresholding (Binerisasi)":
         st.subheader("⚙️ Parameter Thresholding")
         threshold_value = st.slider("Nilai Threshold (0-255):", 0, 255, 127)
+        st.session_state.threshold_value = threshold_value  # Simpan ke session state
         output_image = biner(gray_image, threshold_value)
 
     elif feature == "Citra Negatif":
@@ -228,6 +458,7 @@ if uploaded_file is not None:
     elif feature == "Image Brightening":
         st.subheader("⚙️ Parameter Brightening")
         brightness_value = st.slider("Nilai Brightness (-100 sampai 100):", -100, 100, 50)
+        st.session_state.brightness_value = brightness_value  # Simpan ke session state
         output_image = image_brightening(gray_image, brightness_value)
 
 
@@ -244,6 +475,7 @@ if uploaded_file is not None:
                 "Edge Detection (Laplacian)"
             ]
         )
+        st.session_state.mask_type = mask_type  # Simpan ke session state
         masks = {
             "Smoothing (Average)": np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]]) / 9,
             "Gaussian Blur": np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]]) / 16,
