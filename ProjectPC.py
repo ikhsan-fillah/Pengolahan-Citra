@@ -28,32 +28,52 @@ def biner(image, threshold):
     return result
 
 def negatif(image):
-    """Membuat citra negatif dari citra"""
-    M, N = image.shape
-    result = np.zeros((M, N), dtype=np.uint8)
-    
-    for i in range(M):
-        for j in range(N):
-            result[i, j] = 255 - image[i, j]
+    """Membuat citra negatif dari citra (RGB-safe)"""
+    if len(image.shape) == 3:  # RGB
+        M, N, C = image.shape
+        result = np.zeros((M, N, C), dtype=np.uint8)
+        for i in range(M):
+            for j in range(N):
+                for c in range(C):
+                    result[i, j, c] = 255 - image[i, j, c]
+    else:  # Grayscale
+        M, N = image.shape
+        result = np.zeros((M, N), dtype=np.uint8)
+        for i in range(M):
+            for j in range(N):
+                result[i, j] = 255 - image[i, j]
     
     return result
 
 def image_brightening(image, b):
-    """Pencerahan citra dengan menjumlahkan setiap pixel dengan skalar b"""
-    M, N = image.shape
-    result = np.zeros((M, N), dtype=np.uint8)
-    
-    for i in range(M):
-        for j in range(N):
-            temp = int(image[i, j]) + b
-            
-            # Clipping
-            if temp < 0:
-                result[i, j] = 0
-            elif temp > 255:
-                result[i, j] = 255
-            else:
-                result[i, j] = temp
+    """Pencerahan citra dengan menjumlahkan setiap pixel dengan skalar b (RGB-safe)"""
+    if len(image.shape) == 3:  # RGB
+        M, N, C = image.shape
+        result = np.zeros((M, N, C), dtype=np.uint8)
+        for i in range(M):
+            for j in range(N):
+                for c in range(C):
+                    temp = int(image[i, j, c]) + b
+                    # Clipping
+                    if temp < 0:
+                        result[i, j, c] = 0
+                    elif temp > 255:
+                        result[i, j, c] = 255
+                    else:
+                        result[i, j, c] = temp
+    else:  # Grayscale
+        M, N = image.shape
+        result = np.zeros((M, N), dtype=np.uint8)
+        for i in range(M):
+            for j in range(N):
+                temp = int(image[i, j]) + b
+                # Clipping
+                if temp < 0:
+                    result[i, j] = 0
+                elif temp > 255:
+                    result[i, j] = 255
+                else:
+                    result[i, j] = temp
     
     return result
 
@@ -92,23 +112,42 @@ def multiplication(imageA, imageB):
     return result
 
 def konvolusi(image, mask):
-    """Mengkonvolusi citra dengan mask 3x3"""
-    M, N = image.shape
-    result = np.zeros((M, N), dtype=np.float32)
-    
-    for i in range(1, M-2):
-        for j in range(1, N-2):
-            result[i, j] = (
-                image[i-1, j-1] * mask[0, 0] +
-                image[i-1, j] * mask[0, 1] +
-                image[i-1, j+1] * mask[0, 2] +
-                image[i, j-1] * mask[1, 0] +
-                image[i, j] * mask[1, 1] +
-                image[i, j+1] * mask[1, 2] +
-                image[i+1, j-1] * mask[2, 0] +
-                image[i+1, j] * mask[2, 1] +
-                image[i+1, j+1] * mask[2, 2]
-            )
+    """Mengkonvolusi citra dengan mask 3x3 (RGB-safe)"""
+    if len(image.shape) == 3:  # RGB
+        M, N, C = image.shape
+        result = np.zeros((M, N, C), dtype=np.float32)
+        
+        for c in range(C):  # Process each channel
+            for i in range(1, M-2):
+                for j in range(1, N-2):
+                    result[i, j, c] = (
+                        image[i-1, j-1, c] * mask[0, 0] +
+                        image[i-1, j, c] * mask[0, 1] +
+                        image[i-1, j+1, c] * mask[0, 2] +
+                        image[i, j-1, c] * mask[1, 0] +
+                        image[i, j, c] * mask[1, 1] +
+                        image[i, j+1, c] * mask[1, 2] +
+                        image[i+1, j-1, c] * mask[2, 0] +
+                        image[i+1, j, c] * mask[2, 1] +
+                        image[i+1, j+1, c] * mask[2, 2]
+                    )
+    else:  # Grayscale
+        M, N = image.shape
+        result = np.zeros((M, N), dtype=np.float32)
+        
+        for i in range(1, M-2):
+            for j in range(1, N-2):
+                result[i, j] = (
+                    image[i-1, j-1] * mask[0, 0] +
+                    image[i-1, j] * mask[0, 1] +
+                    image[i-1, j+1] * mask[0, 2] +
+                    image[i, j-1] * mask[1, 0] +
+                    image[i, j] * mask[1, 1] +
+                    image[i, j+1] * mask[1, 2] +
+                    image[i+1, j-1] * mask[2, 0] +
+                    image[i+1, j] * mask[2, 1] +
+                    image[i+1, j+1] * mask[2, 2]
+                )
     
     # Normalisasi ke range 0-255
     result = np.clip(result, 0, 255)
@@ -129,27 +168,54 @@ def histogram(image):
     return hist
 
 def perataan_histogram(image):
-    """Mengubah citra dengan melakukan perataan histogram (histogram equalization)"""
-    M, N = image.shape
-    result = np.zeros((M, N), dtype=np.uint8)
-    
-    # Hitung histogram citra
-    hist = histogram(image)
-    
-    # Hitung histogram hasil perataan
-    hist_eq = np.zeros(256, dtype=np.uint8)
-    for i in range(256):
-        sum_val = 0.0
-        for j in range(i + 1):
-            sum_val += hist[j]
-        hist_eq[i] = int(np.floor(255 * sum_val))
-    
-    # Update citra sesuai histogram hasil perataan
-    for i in range(M):
-        for j in range(N):
-            result[i, j] = hist_eq[image[i, j]]
-    
-    return result
+    """Mengubah citra dengan melakukan perataan histogram (histogram equalization) - RGB-safe"""
+    if len(image.shape) == 3:  # RGB - equalize per channel
+        M, N, C = image.shape
+        result = np.zeros((M, N, C), dtype=np.uint8)
+        
+        for c in range(C):
+            # Hitung histogram untuk channel ini
+            hist_c = np.zeros(256)
+            for i in range(M):
+                for j in range(N):
+                    hist_c[image[i, j, c]] += 1
+            hist_c = hist_c / (M * N)
+            
+            # Hitung histogram hasil perataan (CDF)
+            hist_eq = np.zeros(256, dtype=np.uint8)
+            for i in range(256):
+                sum_val = 0.0
+                for j in range(i + 1):
+                    sum_val += hist_c[j]
+                hist_eq[i] = int(np.floor(255 * sum_val))
+            
+            # Apply mapping
+            for i in range(M):
+                for j in range(N):
+                    result[i, j, c] = hist_eq[image[i, j, c]]
+        
+        return result
+    else:  # Grayscale
+        M, N = image.shape
+        result = np.zeros((M, N), dtype=np.uint8)
+        
+        # Hitung histogram citra
+        hist = histogram(image)
+        
+        # Hitung histogram hasil perataan
+        hist_eq = np.zeros(256, dtype=np.uint8)
+        for i in range(256):
+            sum_val = 0.0
+            for j in range(i + 1):
+                sum_val += hist[j]
+            hist_eq[i] = int(np.floor(255 * sum_val))
+        
+        # Update citra sesuai histogram hasil perataan
+        for i in range(M):
+            for j in range(N):
+                result[i, j] = hist_eq[image[i, j]]
+        
+        return result
 
 def plot_histogram(image):
     """Membuat plot histogram"""
@@ -169,6 +235,88 @@ def convert_to_grayscale(image):
         return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     return image
 
+# ===========================
+# 🔹 FUNGSI TAMBAHAN FITUR
+# ===========================
+
+def convert_to_rgb(image):
+    """Konversi Grayscale ke RGB"""
+    if len(image.shape) == 2:
+        return cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    return image
+
+def convert_to_hsv(image):
+    """Konversi RGB ke HSV"""
+    if len(image.shape) == 3:
+        return cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    return image
+
+def convert_hsv_to_rgb(image):
+    """Konversi HSV ke RGB"""
+    return cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
+
+def resize_image(image, scale_percent):
+    """Perbesar/perkecil citra"""
+    width = int(image.shape[1] * scale_percent / 100)
+    height = int(image.shape[0] * scale_percent / 100)
+    return cv2.resize(image, (width, height))
+
+def rotate_image(image, angle):
+    """Rotasi citra"""
+    h, w = image.shape[:2]
+    M = cv2.getRotationMatrix2D((w//2, h//2), angle, 1)
+    return cv2.warpAffine(image, M, (w, h))
+
+def median_filter(image):
+    """Filter median (RGB-safe)"""
+    if len(image.shape) == 3:  # RGB
+        return cv2.medianBlur(image, 3)
+    else:  # Grayscale
+        return cv2.medianBlur(image, 3)
+
+def gaussian_filter(image):
+    """Filter Gaussian (RGB-safe)"""
+    if len(image.shape) == 3:  # RGB
+        return cv2.GaussianBlur(image, (5,5), 0)
+    else:  # Grayscale
+        return cv2.GaussianBlur(image, (5,5), 0)
+
+def morphology(image, operation="Erosion", kernel_size=3):
+    """Operasi morfologi"""
+    gray = convert_to_grayscale(image)
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    if operation == "Erosion":
+        return cv2.erode(gray, kernel)
+    elif operation == "Dilation":
+        return cv2.dilate(gray, kernel)
+    elif operation == "Opening":
+        return cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel)
+    elif operation == "Closing":
+        return cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
+    elif operation == "Gradient":
+        return cv2.morphologyEx(gray, cv2.MORPH_GRADIENT, kernel)
+    return gray
+
+def otsu_threshold(image):
+    """Threshold otomatis Otsu"""
+    gray = convert_to_grayscale(image)
+    _, result = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return result
+
+def fourier_transform(image):
+    """Transformasi Fourier"""
+    gray = convert_to_grayscale(image)
+    f = np.fft.fft2(gray)
+    fshift = np.fft.fftshift(f)
+    magnitude = 20 * np.log(np.abs(fshift) + 1)
+    return np.uint8(np.clip(magnitude, 0, 255))
+
+def image_statistics(image):
+    """Hitung mean & standar deviasi"""
+    gray = convert_to_grayscale(image)
+    return np.mean(gray), np.std(gray)
+
+
 # Sidebar untuk pilihan fitur
 st.sidebar.title("🎨 Fitur Pengolahan Citra")
 st.sidebar.markdown("---")
@@ -178,12 +326,23 @@ feature = st.sidebar.selectbox(
     [
         "Original",
         "Thresholding (Binerisasi)",
+        "Otsu Thresholding",
         "Citra Negatif",
         "Image Brightening",
         "Convolution (Konvolusi)",
-        "Histogram Equalization"
+        "Histogram Equalization",
+        "Konversi ke HSV",
+        "Konversi HSV ke RGB",
+        "Scaling (Resize)",
+        "Rotasi Citra",
+        "Filter Median",
+        "Filter Gaussian",
+        "Operasi Morfologi",
+        "Transformasi Fourier (FFT)",
+        "Analisis Statistik"
     ]
 )
+
 
 st.sidebar.markdown("---")
 st.sidebar.info("📝 Pilih fitur di atas untuk mengolah gambar yang Anda upload.")
@@ -300,6 +459,8 @@ elif input_source == "Video Live":
             key="live_mask"
         )
         st.session_state.mask_type = mask_type
+    
+        
     
     col_video1, col_video2 = st.columns(2)
     
@@ -436,12 +597,20 @@ if uploaded_file is not None or camera_image is not None:
     else:
         # Gunakan gambar dari kamera
         image_array = camera_image
+
+    # Pastikan ada gambar sebelum melanjutkan
+    if image_array is None:
+        st.error("❌ Tidak ada gambar yang tersedia untuk diproses.")
+        st.stop()
+
+    # Pastikan tipe adalah numpy array (mis. PIL Image atau list)
+    image_array = np.asarray(image_array)
     
     # Simpan gambar asli untuk ditampilkan di input
     rgb_image = image_array.copy()
     gray_image = convert_to_grayscale(image_array)
-    # Variabel untuk gambar output
-    output_image = gray_image.copy()
+    # Variabel untuk gambar output (default RGB, bukan grayscale)
+    output_image = rgb_image.copy()
 
     # Parameter untuk fitur yang membutuhkan input
     st.markdown("---")
@@ -453,13 +622,13 @@ if uploaded_file is not None or camera_image is not None:
         output_image = biner(gray_image, threshold_value)
 
     elif feature == "Citra Negatif":
-        output_image = negatif(gray_image)
+        output_image = negatif(rgb_image)  # Proses RGB
 
     elif feature == "Image Brightening":
         st.subheader("⚙️ Parameter Brightening")
         brightness_value = st.slider("Nilai Brightness (-100 sampai 100):", -100, 100, 50)
         st.session_state.brightness_value = brightness_value  # Simpan ke session state
-        output_image = image_brightening(gray_image, brightness_value)
+        output_image = image_brightening(rgb_image, brightness_value)  # Proses RGB
 
 
     elif feature == "Convolution (Konvolusi)":
@@ -475,7 +644,7 @@ if uploaded_file is not None or camera_image is not None:
                 "Edge Detection (Laplacian)"
             ]
         )
-        st.session_state.mask_type = mask_type  # Simpan ke session state
+        st.session_state.mask_type = mask_type   
         masks = {
             "Smoothing (Average)": np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]]) / 9,
             "Gaussian Blur": np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]]) / 16,
@@ -485,10 +654,51 @@ if uploaded_file is not None or camera_image is not None:
             "Edge Detection (Laplacian)": np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
         }
         selected_mask = masks[mask_type]
-        output_image = konvolusi(gray_image, selected_mask)
+        output_image = konvolusi(rgb_image, selected_mask)  # Proses RGB
 
     elif feature == "Histogram Equalization":
-        output_image = perataan_histogram(gray_image)
+        output_image = perataan_histogram(rgb_image)  # Proses RGB
+
+    elif feature == "Otsu Thresholding":
+        output_image = otsu_threshold(gray_image)
+
+    elif feature == "Konversi ke HSV":
+        output_image = convert_to_hsv(rgb_image)
+
+    elif feature == "Konversi HSV ke RGB":
+        hsv_img = convert_to_hsv(rgb_image)
+        output_image = convert_hsv_to_rgb(hsv_img)
+
+    elif feature == "Scaling (Resize)":
+        st.subheader("⚙️ Scaling")
+        scale_percent = st.slider("Skala (%):", 10, 200, 100)
+        output_image = resize_image(rgb_image, scale_percent)  # Proses RGB
+
+    elif feature == "Rotasi Citra":
+        st.subheader("⚙️ Rotasi Citra")
+        angle = st.slider("Sudut Rotasi (°):", -180, 180, 0)
+        output_image = rotate_image(rgb_image, angle)  # Proses RGB
+
+    elif feature == "Filter Median":
+        output_image = median_filter(rgb_image)  # Proses RGB
+
+    elif feature == "Filter Gaussian":
+        output_image = gaussian_filter(rgb_image)  # Proses RGB
+
+    elif feature == "Operasi Morfologi":
+        st.subheader("⚙️ Operasi Morfologi")
+        op = st.selectbox("Pilih Operasi:", ["Erosion","Dilation","Opening","Closing","Gradient"])
+        k = st.slider("Ukuran Kernel:", 1, 15, 3, step=2)
+        output_image = morphology(rgb_image, op, k)  # Tetap grayscale (morfologi butuh grayscale)
+
+    elif feature == "Transformasi Fourier (FFT)":
+        output_image = fourier_transform(rgb_image)  # Tetap grayscale (FFT butuh grayscale)
+
+    elif feature == "Analisis Statistik":
+        mean, std = image_statistics(rgb_image)
+        st.write(f"📊 **Rata-rata Intensitas:** {mean:.2f}")
+        st.write(f"📉 **Deviasi Standar:** {std:.2f}")
+        output_image = rgb_image.copy()  # Tampilkan gambar asli untuk statistik
 
     elif feature == "Original":
         output_image = rgb_image.copy()
@@ -499,7 +709,7 @@ if uploaded_file is not None or camera_image is not None:
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("🖼️ Gambar Input")
-        st.image(rgb_image, width=200, clamp=True)
+        st.image(rgb_image, use_container_width=True, clamp=True)
         st.subheader("📈 Histogram Input")
         fig_input = plot_histogram(gray_image)
         st.pyplot(fig_input)
@@ -507,15 +717,17 @@ if uploaded_file is not None or camera_image is not None:
     with col2:
         st.subheader("🖼️ Gambar Output")
         if feature == "Original":
-            st.image(output_image, width=200, clamp=True)
+            st.image(output_image, use_container_width=True, clamp=True)
             st.subheader("📈 Histogram Output")
             fig_output = plot_histogram(gray_image)
             st.pyplot(fig_output)
             plt.close()
         else:
-            st.image(output_image, width=200, clamp=True)
+            st.image(output_image, use_container_width=True, clamp=True)
             st.subheader("📈 Histogram Output")
-            fig_output = plot_histogram(output_image)
+            # Konversi ke grayscale hanya untuk histogram (visualisasi intensitas)
+            output_gray = convert_to_grayscale(output_image)
+            fig_output = plot_histogram(output_gray)
             st.pyplot(fig_output)
             plt.close()
     # Download hasil
